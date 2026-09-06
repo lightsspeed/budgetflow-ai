@@ -1,203 +1,214 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useTransactionStore } from "@/store/transactionStore";
+import Dropdown, { DropdownItem } from "./Dropdown";
 
-const CATEGORIES = [
-  "Groceries", "Salary", "Entertainment", "Dining", "Transport",
-  "Utilities", "Shopping", "Freelance", "Health", "Rent", "Insurance", "Other",
-];
+interface AddTransactionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
 
-const ACCOUNTS = [
-  "Credit Card •••• 4211",
-  "Checking •••• 9920",
-  "Debit Card •••• 1122",
-  "Savings •••• 3344",
-  "Cash",
-];
-
-export default function AddTransactionModal({ onClose }: { onClose: () => void }) {
+export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProps) {
   const addTransaction = useTransactionStore((s) => s.addTransaction);
-  const [form, setForm] = useState({
-    description: "",
-    merchant: "",
-    amount: "",
-    type: "expense" as "income" | "expense",
-    category: "Other",
-    account: ACCOUNTS[0],
-    notes: "",
-    date: new Date().toISOString().split("T")[0],
-  });
-  const [error, setError] = useState("");
 
-  const handleSubmit = () => {
-    if (!form.description || !form.amount || Number(form.amount) <= 0) {
-      setError("Description and amount are required.");
-      return;
-    }
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("Food & Dining");
+  const [type, setType] = useState<"expense" | "income">("expense");
+  const [account, setAccount] = useState("HDFC Credit Card");
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!description || !amount) return;
+
     addTransaction({
-      id: `tx-${Date.now()}`,
-      date: new Date(form.date).toLocaleDateString("en-US", {
-        month: "short", day: "numeric", year: "numeric",
-      }),
-      description: form.description,
-      merchant: form.merchant || form.description,
-      account: form.account,
-      category: form.category,
-      notes: form.notes,
-      amount: Number(form.amount),
-      type: form.type,
+      description,
+      merchant: description,
+      category,
+      account,
+      date: `${new Date().getDate()} Sep 2026`,
+      notes: "Modal entry",
+      amount: parseFloat(amount),
+      type,
     });
+
+    setDescription("");
+    setAmount("");
     onClose();
   };
 
+  const categories = [
+    "Food & Dining",
+    "Shopping",
+    "Transport",
+    "Bills & Utilities",
+    "Entertainment",
+    "Income",
+    "Other",
+  ];
+
+  const accounts = ["HDFC Credit Card", "HDFC Bank", "Savings Account", "Cash"];
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div
-        className="bg-surface-container-lowest rounded-xl p-6 shadow-xl border border-outline-variant/30 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-md bg-[#111c1e] border border-white/10 rounded-3xl shadow-2xl p-6 text-white space-y-6 animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
-            Add Transaction
-          </h3>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface p-1">
-            <span className="material-symbols-outlined">close</span>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </div>
+            <h3 className="text-base font-bold text-white tracking-tight">Add New Transaction</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition cursor-pointer"
+          >
+            ✕
           </button>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-error-container text-on-error-container font-body-sm text-body-sm">
-            {error}
-          </div>
-        )}
-
-        <div className="flex flex-col gap-4">
-          <div className="flex gap-2">
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Type Toggle Pills */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 border border-white/10 rounded-xl">
             <button
-              onClick={() => setForm({ ...form, type: "expense" })}
-              className={`flex-1 py-2.5 rounded-lg font-label-md text-label-md transition-all ${
-                form.type === "expense"
-                  ? "bg-error text-on-error shadow-sm"
-                  : "bg-surface-container text-on-surface-variant"
+              type="button"
+              onClick={() => setType("expense")}
+              className={`py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+                type === "expense" ? "bg-rose-500 text-white shadow-md" : "text-slate-400 hover:text-white"
               }`}
             >
-              Expense
+              ↓ Expense
             </button>
             <button
-              onClick={() => setForm({ ...form, type: "income" })}
-              className={`flex-1 py-2.5 rounded-lg font-label-md text-label-md transition-all ${
-                form.type === "income"
-                  ? "bg-secondary text-on-secondary shadow-sm"
-                  : "bg-surface-container text-on-surface-variant"
+              type="button"
+              onClick={() => setType("income")}
+              className={`py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+                type === "income" ? "bg-emerald-500 text-white shadow-md" : "text-slate-400 hover:text-white"
               }`}
             >
-              Income
+              ↑ Income
             </button>
           </div>
 
+          {/* Description Input */}
           <div>
-            <label className="font-label-sm text-label-sm text-on-surface-variant mb-1 block">Description *</label>
+            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+              Description / Merchant
+            </label>
             <input
-              value={form.description}
-              onChange={(e) => { setForm({ ...form, description: e.target.value }); setError(""); }}
-              className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-on-surface placeholder:text-outline"
-              placeholder="e.g. Whole Foods Market"
+              type="text"
+              required
+              placeholder="e.g. Starbucks Coffee"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="font-label-sm text-label-sm text-on-surface-variant mb-1 block">Amount *</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant font-body-md">$</span>
-                <input
-                  type="number"
-                  value={form.amount}
-                  onChange={(e) => { setForm({ ...form, amount: e.target.value }); setError(""); }}
-                  className="w-full pl-7 pr-3 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-on-surface placeholder:text-outline"
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="font-label-sm text-label-sm text-on-surface-variant mb-1 block">Date</label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-on-surface"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="font-label-sm text-label-sm text-on-surface-variant mb-1 block">Category</label>
-              <select
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-on-surface appearance-none cursor-pointer"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="font-label-sm text-label-sm text-on-surface-variant mb-1 block">Account</label>
-              <select
-                value={form.account}
-                onChange={(e) => setForm({ ...form, account: e.target.value })}
-                className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-on-surface appearance-none cursor-pointer"
-              >
-                {ACCOUNTS.map((a) => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
+          {/* Amount Input */}
           <div>
-            <label className="font-label-sm text-label-sm text-on-surface-variant mb-1 block">Merchant</label>
+            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+              Amount (₹)
+            </label>
             <input
-              value={form.merchant}
-              onChange={(e) => setForm({ ...form, merchant: e.target.value })}
-              className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-on-surface placeholder:text-outline"
-              placeholder="Optional"
+              type="number"
+              required
+              step="any"
+              placeholder="e.g. 450"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition"
             />
           </div>
 
+          {/* Category Dropdown */}
           <div>
-            <label className="font-label-sm text-label-sm text-on-surface-variant mb-1 block">Notes</label>
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-on-surface placeholder:text-outline resize-none"
-              rows={2}
-              placeholder="Optional"
-            />
+            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+              Category
+            </label>
+            <Dropdown
+              trigger={
+                <button
+                  type="button"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-emerald-500/50 transition"
+                >
+                  <span>{category}</span>
+                  <span className="material-symbols-outlined text-[16px] text-slate-400">expand_more</span>
+                </button>
+              }
+            >
+              {categories.map((c) => (
+                <DropdownItem
+                  key={c}
+                  active={category === c}
+                  onClick={() => setCategory(c)}
+                  icon="label"
+                >
+                  {c}
+                </DropdownItem>
+              ))}
+            </Dropdown>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          {/* Account Dropdown */}
+          <div>
+            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+              Payment Account
+            </label>
+            <Dropdown
+              trigger={
+                <button
+                  type="button"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-emerald-500/50 transition"
+                >
+                  <span>{account}</span>
+                  <span className="material-symbols-outlined text-[16px] text-slate-400">expand_more</span>
+                </button>
+              }
+            >
+              {accounts.map((a) => (
+                <DropdownItem
+                  key={a}
+                  active={account === a}
+                  onClick={() => setAccount(a)}
+                  icon="account_balance_wallet"
+                >
+                  {a}
+                </DropdownItem>
+              ))}
+            </Dropdown>
+          </div>
+
+          {/* Footer Action Buttons */}
+          <div className="pt-4 border-t border-white/10 flex items-center justify-end gap-3">
             <button
+              type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-lg border border-outline-variant text-on-surface font-label-md text-label-md hover:bg-surface-container-low transition-colors"
+              className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
             >
               Cancel
             </button>
             <button
-              onClick={handleSubmit}
-              className="flex-1 py-2.5 rounded-lg bg-primary text-on-primary font-label-md text-label-md shadow-sm hover:bg-primary/90 transition-colors"
+              type="submit"
+              className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 transition active:scale-95 cursor-pointer"
             >
-              Add {form.type === "expense" ? "Expense" : "Income"}
+              Save Transaction
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
 }
+
+export default AddTransactionModal;

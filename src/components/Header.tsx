@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import Dropdown, { DropdownItem } from "./Dropdown";
+import DropdownMenu11 from "./dropdown-menu-11";
 
 interface HeaderProps {
   title: string;
@@ -19,22 +20,22 @@ const MONTHS = [
 export default function Header({ title, subtitle = "This Month", actions, onMonthChange }: HeaderProps) {
   return (
     <>
-      <header className="hidden md:flex sticky top-0 w-full z-30 bg-surface/80 backdrop-blur-md shadow-sm h-16 items-center px-6 justify-between border-b-0">
+      <header className="hidden md:flex sticky top-0 w-full z-30 bg-white/80 backdrop-blur-md shadow-xs h-16 items-center px-6 justify-between border-b border-slate-100">
         <div className="flex items-center gap-4">
-          <h2 className="font-headline-md text-headline-md font-bold text-on-surface">
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">
             {title}
           </h2>
           {subtitle && (
             <>
-              <div className="h-6 w-px bg-outline-variant/50" />
+              <div className="h-5 w-px bg-slate-200" />
               <Dropdown
                 trigger={
-                  <button className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md glass rounded-lg px-3 py-1.5 cursor-pointer">
-                    <span className="material-symbols-outlined text-[18px]">
+                  <button className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors text-xs font-semibold bg-slate-100/80 hover:bg-slate-100 rounded-xl px-3 py-1.5 cursor-pointer">
+                    <span className="material-symbols-outlined text-[16px] text-slate-500">
                       calendar_today
                     </span>
                     {subtitle}
-                    <span className="material-symbols-outlined text-[18px]">
+                    <span className="material-symbols-outlined text-[16px] text-slate-400">
                       expand_more
                     </span>
                   </button>
@@ -45,6 +46,7 @@ export default function Header({ title, subtitle = "This Month", actions, onMont
                     key={m}
                     active={m === subtitle}
                     onClick={() => onMonthChange?.(m)}
+                    icon="calendar_month"
                   >
                     {m}
                   </DropdownItem>
@@ -55,46 +57,64 @@ export default function Header({ title, subtitle = "This Month", actions, onMont
         </div>
         <div className="flex items-center gap-4">
           {actions}
-          <button className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container-high">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-label-md text-label-md font-bold border border-outline-variant/30">
+          <DropdownMenu11
+            align="end"
+            trigger={
+              <button className="text-slate-500 hover:text-slate-900 transition-colors p-2 rounded-xl hover:bg-slate-100 cursor-pointer relative">
+                <span className="material-symbols-outlined text-xl">notifications</span>
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+              </button>
+            }
+          />
+          <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-700 flex items-center justify-center text-xs font-extrabold border border-emerald-500/20">
             U
           </div>
         </div>
       </header>
-      <header className="md:hidden sticky top-0 w-full z-30 bg-surface/80 backdrop-blur-md shadow-sm h-16 flex items-center justify-between px-4 border-b-0">
+      <header className="md:hidden sticky top-0 w-full z-30 bg-white/80 backdrop-blur-md shadow-xs h-16 flex items-center justify-between px-4 border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-headline-md text-[16px] font-bold">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-700 flex items-center justify-center text-xs font-extrabold border border-emerald-500/20">
             B
           </div>
-          <h2 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface">
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">
             {title}
           </h2>
         </div>
-        {subtitle && (
-          <Dropdown
+        <div className="flex items-center gap-2">
+          <DropdownMenu11
+            align="end"
             trigger={
-              <button className="flex items-center gap-1 text-on-surface-variant font-label-sm text-label-sm glass rounded-lg px-2 py-1 cursor-pointer">
-                {subtitle}
-                <span className="material-symbols-outlined text-[16px]">
-                  expand_more
-                </span>
+              <button className="text-slate-500 hover:text-slate-900 transition-colors p-1.5 rounded-xl hover:bg-slate-100 cursor-pointer relative">
+                <span className="material-symbols-outlined text-lg">notifications</span>
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500" />
               </button>
             }
-            align="right"
-          >
-            {MONTHS.map((m) => (
-              <DropdownItem
-                key={m}
-                active={m === subtitle}
-                onClick={() => onMonthChange?.(m)}
-              >
-                {m}
-              </DropdownItem>
-            ))}
-          </Dropdown>
-        )}
+          />
+          {subtitle && (
+            <Dropdown
+              trigger={
+                <button className="flex items-center gap-1 text-slate-600 font-semibold text-xs bg-slate-100 rounded-xl px-2.5 py-1 cursor-pointer">
+                  {subtitle}
+                  <span className="material-symbols-outlined text-[16px]">
+                    expand_more
+                  </span>
+                </button>
+              }
+              align="right"
+            >
+              {MONTHS.map((m) => (
+                <DropdownItem
+                  key={m}
+                  active={m === subtitle}
+                  onClick={() => onMonthChange?.(m)}
+                  icon="calendar_month"
+                >
+                  {m}
+                </DropdownItem>
+              ))}
+            </Dropdown>
+          )}
+        </div>
       </header>
     </>
   );

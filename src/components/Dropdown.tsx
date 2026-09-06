@@ -1,41 +1,36 @@
 "use client";
 
-import { useState, useRef, useEffect, ReactNode } from "react";
+import React, { ReactNode } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuGroup,
+} from "@/components/ui/dropdown-menu";
 
 interface DropdownProps {
   trigger: ReactNode;
   children: ReactNode;
   align?: "left" | "right";
+  className?: string;
 }
 
-export default function Dropdown({ trigger, children, align = "left" }: DropdownProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
+export default function Dropdown({ trigger, children, align = "left", className }: DropdownProps) {
   return (
-    <div className="relative" ref={ref}>
-      <div onClick={() => setOpen(!open)}>{trigger}</div>
-      {open && (
-        <div
-          className={`absolute top-full mt-1 z-50 min-w-[180px] bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant/30 p-1 ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
-          onClick={() => setOpen(false)}
-        >
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <div className="inline-block cursor-pointer outline-none">{trigger}</div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        className={`bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 p-1.5 shadow-xl shadow-slate-900/10 min-w-[180px] z-50 animate-in fade-in-80 zoom-in-95 ${className || ""}`}
+        align={align === "right" ? "end" : "start"}
+      >
+        <DropdownMenuGroup className="flex flex-col gap-0.5">
           {children}
-        </div>
-      )}
-    </div>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -44,25 +39,30 @@ export function DropdownItem({
   active,
   children,
   icon,
+  className,
 }: {
   onClick?: () => void;
   active?: boolean;
   children: ReactNode;
   icon?: string;
+  className?: string;
 }) {
   return (
-    <button
+    <DropdownMenuItem
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors font-label-sm text-label-sm ${
+      className={`group flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all outline-none ${
         active
-          ? "bg-primary/5 text-primary font-medium"
-          : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-      }`}
+          ? "bg-slate-100/90 text-slate-900 font-bold"
+          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+      } ${className || ""}`}
     >
       {icon && (
-        <span className="material-symbols-outlined text-[16px]">{icon}</span>
+        <span className="material-symbols-outlined text-[16px] text-slate-500 transition-transform duration-200 group-hover:scale-110">
+          {icon}
+        </span>
       )}
-      {children}
-    </button>
+      <span className="flex-1 truncate">{children}</span>
+      {active && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
+    </DropdownMenuItem>
   );
 }

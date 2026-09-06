@@ -101,3 +101,86 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ====== ANIMATIONS ====== */
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes progressFill {
+  from { width: 0%; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.0); }
+  50%       { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.15); }
+}
+
+@keyframes slideRight {
+  from { transform: translateX(-8px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+/* Utility classes */
+.animate-fade-slide-up  { animation: fadeSlideUp 0.38s cubic-bezier(0.22,1,0.36,1) both; }
+.animate-fade-in        { animation: fadeIn 0.3s ease both; }
+.animate-scale-in       { animation: scaleIn 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+.animate-slide-right    { animation: slideRight 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+.animate-progress-fill  { animation: progressFill 0.9s cubic-bezier(0.22,1,0.36,1) both; }
+.animate-pulse-glow     { animation: pulseGlow 2s ease-in-out infinite; }
+
+/* Stagger delays for children */
+.stagger > *:nth-child(1) { animation-delay: 0ms;   }
+.stagger > *:nth-child(2) { animation-delay: 60ms;  }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+.stagger > *:nth-child(7) { animation-delay: 360ms; }
+.stagger > *:nth-child(8) { animation-delay: 420ms; }
+
+/* Smooth tab page transitions */
+.tab-panel {
+  animation: fadeSlideUp 0.35s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+/* Progress bar with animated fill */
+.progress-bar-animated {
+  transition: width 0.9s cubic-bezier(0.22,1,0.36,1);
+}
+
+/* Hover lift card */
+.hover-lift {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.hover-lift:hover {
+  box-shadow: 0 8px 24px -4px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+}
+
+/* Number shimmer on update */
+.shimmer-text {
+  background: linear-gradient(90deg, currentColor 25%, rgba(255,255,255,0.6) 50%, currentColor 75%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import MobileNav from "@/components/MobileNav";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -21,8 +19,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BudgetFlow AI",
-  description: "Premium personal finance platform",
+  title: "Budget Tracker - AI Finance Platform",
+  description: "Budget Tracker dashboard and financial manager",
 };
 
 export default function RootLayout({
@@ -40,14 +38,17 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"
         />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body className="bg-background text-on-background font-body-md antialiased flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 md:ml-[280px] min-h-screen flex flex-col pb-24 md:pb-0">
+      <body className="bg-[#f2f4f7] text-slate-900 font-sans antialiased min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+        <main className="w-full min-h-screen flex flex-col flex-1">
           {children}
         </main>
-        <MobileNav />
       </body>
     </html>
   );
 }
+
