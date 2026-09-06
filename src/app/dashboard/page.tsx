@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,8 @@ import { useTransactionStore, Transaction } from "@/store/transactionStore";
 import { useBudgetStore } from "@/store/budgetStore";
 import { useCategoryStore } from "@/store/categoryStore";
 import { useGoalStore } from "@/store/goalStore";
+import { useAccountStore } from "@/store/accountStore";
+import { useThemeStore } from "@/store/themeStore";
 import { useCountUp } from "@/hooks/useCountUp";
 import { AddTransactionModal } from "@/components/AddTransactionModal";
 import { AccountsTab } from "@/components/AccountsTab";
@@ -105,6 +107,28 @@ function DotsIcon() {
 const TABS = ["Overview", "Transactions", "Accounts", "Budget", "Goals", "Categories"];
 
 const MONTHS = ["Jan 2026","Feb 2026","Mar 2026","Apr 2026","May 2026","Jun 2026","Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026"];
+const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const CHART_COLORS = ["#3b82f6","#ec4899","#f59e0b","#eab308","#8b5cf6","#64748b"];
+const CAT_BAR_COLORS = ["bg-emerald-500","bg-rose-400","bg-amber-400","bg-blue-500","bg-purple-400"];
+
+// Parse display-format dates ("6 Sep 2026" or "2026-09-06") into JS Date
+function parseTxDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const parts = dateStr.trim().split(" ");
+  if (parts.length === 3) {
+    const monthMap: Record<string, number> = {
+      Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+      Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+    };
+    const day = parseInt(parts[0]);
+    const month = monthMap[parts[1]];
+    const year = parseInt(parts[2]);
+    if (!isNaN(day) && month !== undefined && !isNaN(year))
+      return new Date(year, month, day);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return new Date(dateStr);
+  return null;
+}
 
 // Helper functions for date formatting
 function formatDisplayDate(dateStr: string): string {
@@ -620,6 +644,97 @@ export default function FinelyLiveDashboard() {
   // Live Zustand Transaction Store
   const { transactions, searchQuery, setSearchQuery, addTransaction, updateTransaction, deleteTransaction } = useTransactionStore();
 
+  // Account & Theme Stores
+  const { accounts } = useAccountStore();
+  const { isDark, toggleTheme } = useThemeStore();
+
+  // Apply dark mode to <html>
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  // Per-account live balances (initial balance ± transactions)
+  const accountBalances = useMemo(() => {
+    const bal: Record<string, { income: number; expense: number; current: number }> = {};
+    accounts.forEach((acc) => { bal[acc.name] = { income: 0, expense: 0, current: acc.initialBalance }; });
+    transactions.forEach((tx) => {
+      const k = tx.account || "Unknown";
+      if (!bal[k]) bal[k] = { income: 0, expense: 0, current: 0 };
+      if (tx.type === "income") { bal[k].income += tx.amount; bal[k].current += tx.amount; }
+      else { bal[k].expense += tx.amount; bal[k].current -= tx.amount; }
+    });
+    return bal;
+  }, [accounts, transactions]);
+
+  // Total assets (non-credit accounts)
+  const totalAssets = useMemo(() =>
+    accounts.filter((a) => a.type !== "credit")
+      .reduce((s, a) => s + (accountBalances[a.name]?.current ?? a.initialBalance), 0),
+    [accounts, accountBalances]
+  );
+
+  // Total credit-card debt
+  const totalCreditDebt = useMemo(() =>
+    accounts.filter((a) => a.type === "credit").reduce((s, a) => {
+      const cur = accountBalances[a.name]?.current ?? a.initialBalance;
+      return s + (cur < 0 ? Math.abs(cur) : 0);
+    }, 0),
+    [accounts, accountBalances]
+  );
+
+  // Spending breakdown by category (live)
+  const spendingBreakdown = useMemo(() => {
+    const map: Record<string, number> = {};
+    transactions.filter((t) => t.type === "expense").forEach((t) => {
+      map[t.category] = (map[t.category] || 0) + t.amount;
+    });
+    const total = Object.values(map).reduce((s, v) => s + v, 0);
+    const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+    const top5 = sorted.slice(0, 5).map(([label, val], i) => ({
+      label, val, pct: total > 0 ? Math.round((val / total) * 100) : 0, color: CHART_COLORS[i] || "#64748b",
+    }));
+    const otherTotal = sorted.slice(5).reduce((s, [, v]) => s + v, 0);
+    if (otherTotal > 0) top5.push({ label: "Other", val: otherTotal, pct: total > 0 ? Math.round((otherTotal / total) * 100) : 0, color: "#64748b" });
+    return { items: top5, total };
+  }, [transactions]);
+
+  // Monthly cashflow – last 6 months (live)
+  const monthlyCashflow = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      const yr = d.getFullYear(), mo = d.getMonth();
+      let income = 0, expense = 0;
+      transactions.forEach((tx) => {
+        const txDate = parseTxDate(tx.date);
+        if (txDate && txDate.getFullYear() === yr && txDate.getMonth() === mo) {
+          if (tx.type === "income") income += tx.amount;
+          else expense += tx.amount;
+        }
+      });
+      return { label: MONTH_LABELS[mo], income, expense, isCurrentMonth: i === 5 };
+    });
+  }, [transactions]);
+
+  // Top spending categories for overview panel (live)
+  const topCategoriesData = useMemo(() => {
+    const map: Record<string, number> = {};
+    transactions.filter((t) => t.type === "expense").forEach((t) => {
+      map[t.category] = (map[t.category] || 0) + t.amount;
+    });
+    const total = Object.values(map).reduce((s, v) => s + v, 0);
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([label, val], i) => ({
+        rank: i + 1, label,
+        val: `₹${val.toLocaleString("en-IN")}`,
+        pct: `${total > 0 ? Math.round((val / total) * 100) : 0}%`,
+        numPct: total > 0 ? Math.round((val / total) * 100) : 0,
+        color: CAT_BAR_COLORS[i] || "bg-slate-400",
+      }));
+  }, [transactions]);
+
   // Fast Keyboard Add Handler
   const handleFastAdd = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -670,15 +785,21 @@ export default function FinelyLiveDashboard() {
     .filter((t) => t.type === "expense")
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const netBalance = 73180 + totalIncome - totalExpense;
+  // Net balance derived from real account data (no hardcoded base)
+  const netBalance = totalAssets - totalCreditDebt;
+
+  // Savings rate: % of income saved after expenses (0 if no income)
+  const savingsRate = totalIncome > 0
+    ? Math.max(0, Math.round(((totalIncome - totalExpense) / totalIncome) * 100))
+    : 0;
 
   // Animated number counting (runs on mount)
-  const balanceCountUp   = useCountUp({ end: netBalance,    prefix: "₹", enabled: isMounted });
-  const incomeCountUp    = useCountUp({ end: totalIncome,   prefix: "₹", enabled: isMounted });
-  const expenseCountUp   = useCountUp({ end: totalExpense,  prefix: "₹", enabled: isMounted });
-  const assetsCountUp    = useCountUp({ end: 124500 + totalIncome,  prefix: "₹", enabled: isMounted });
-  const liabCountUp      = useCountUp({ end: 51320 + totalExpense,  prefix: "₹", enabled: isMounted });
-  const savingsRateCount = useCountUp({ end: 32, suffix: "%", enabled: isMounted });
+  const balanceCountUp   = useCountUp({ end: netBalance,      prefix: "₹", enabled: isMounted });
+  const incomeCountUp    = useCountUp({ end: totalIncome,     prefix: "₹", enabled: isMounted });
+  const expenseCountUp   = useCountUp({ end: totalExpense,    prefix: "₹", enabled: isMounted });
+  const assetsCountUp    = useCountUp({ end: totalAssets,     prefix: "₹", enabled: isMounted });
+  const liabCountUp      = useCountUp({ end: totalCreditDebt, prefix: "₹", enabled: isMounted });
+  const savingsRateCount = useCountUp({ end: savingsRate,     suffix: "%", enabled: isMounted });
 
   return (
     <div className="w-full min-h-screen bg-[#f2f5f7] font-sans text-slate-900 antialiased selection:bg-emerald-500 selection:text-white">
@@ -725,6 +846,26 @@ export default function FinelyLiveDashboard() {
 
             {/* Right Controls: Add Transaction, Month Selector, Bell, Profile */}
             <div className="flex items-center gap-3">
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={toggleTheme}
+                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                className="p-1.5 rounded-full bg-black/40 border border-white/10 text-slate-300 hover:text-white transition cursor-pointer backdrop-blur-md"
+              >
+                {isDark ? (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                  </svg>
+                )}
+              </button>
+
               {/* + Add Transaction Button */}
               <button
                 onClick={() => setIsAddModalOpen(true)}
@@ -780,7 +921,7 @@ export default function FinelyLiveDashboard() {
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-              <span>Wednesday, 5 September 2026</span>
+              <span>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
               Good evening, Akhilesh 👋
@@ -841,9 +982,14 @@ export default function FinelyLiveDashboard() {
                     <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
                       {balanceCountUp}
                     </div>
-                    <Badge variant="success" className="mt-1.5 font-bold">
-                      ↑ +12.4% <span className="font-medium text-emerald-700 ml-1">from last month</span>
-                    </Badge>
+                    {(totalAssets > 0 || totalCreditDebt > 0) ? (
+                      <Badge variant={netBalance >= 0 ? "success" : "destructive"} className="mt-1.5 font-bold">
+                        {netBalance >= 0 ? "↑ Positive" : "↓ Negative"}
+                        <span className="font-medium ml-1">{netBalance >= 0 ? "net balance" : "net balance"}</span>
+                      </Badge>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 mt-1.5 block">Add accounts to start tracking</span>
+                    )}
                   </div>
 
                   {/* Live Assets & Liabilities Progress Bars */}
@@ -876,7 +1022,11 @@ export default function FinelyLiveDashboard() {
                   <div className="flex-1 min-w-0">
                     <h4 className="text-xs font-bold text-purple-950">AI Insight</h4>
                     <p className="text-[11px] text-purple-700 truncate">
-                      Your net worth increased by ₹8,120 this month.
+                      {totalExpense > 0
+                        ? `Spent ₹${totalExpense.toLocaleString("en-IN")} across ${spendingBreakdown.items.length} categor${spendingBreakdown.items.length === 1 ? "y" : "ies"}.`
+                        : totalIncome > 0
+                        ? `₹${totalIncome.toLocaleString("en-IN")} income recorded. Add expenses to track spending.`
+                        : "Add your first transaction to start tracking."}
                     </p>
                   </div>
                   <ChevronRight />
@@ -931,38 +1081,30 @@ export default function FinelyLiveDashboard() {
                     </span>
                   </div>
 
-                  {/* Bar Chart */}
+                  {/* Bar Chart — live data */}
                   <div className="mt-6 h-44 flex items-end justify-between relative pt-6 pb-2 px-2">
-                    {[
-                      { month: "Apr", income: "60%", expense: "40%" },
-                      { month: "May", income: "75%", expense: "50%" },
-                      { month: "Jun", income: "65%", expense: "45%" },
-                      { month: "Jul", income: "70%", expense: "55%" },
-                      { month: "Aug", income: "60%", expense: "50%" },
-                      { month: "Sep", income: "85%", expense: "42%", active: true },
-                    ].map((item, idx) => {
-                      return (
-                        <div
-                          key={item.month}
-                          className="flex flex-col items-center group cursor-pointer relative h-full justify-end"
-                        >
-                          {/* Dual Vertical Bars */}
+                    {(() => {
+                      const maxVal = Math.max(...monthlyCashflow.map((m) => Math.max(m.income, m.expense)), 1);
+                      return monthlyCashflow.map((item) => (
+                        <div key={item.label} className="flex flex-col items-center group cursor-pointer relative h-full justify-end">
                           <div className="flex items-end gap-1 h-full">
                             <div
-                              style={{ height: item.income }}
-                              className="w-3 md:w-3.5 bg-emerald-400 rounded-t-full hover:bg-emerald-500 transition"
+                              style={{ height: `${(item.income / maxVal) * 100}%`, minHeight: item.income > 0 ? "4px" : "2px" }}
+                              className="w-3 md:w-3.5 bg-emerald-400 rounded-t-full hover:bg-emerald-500 transition opacity-90"
                             />
                             <div
-                              style={{ height: item.expense }}
-                              className="w-3 md:w-3.5 bg-rose-400 rounded-t-full hover:bg-rose-500 transition"
+                              style={{ height: `${(item.expense / maxVal) * 100}%`, minHeight: item.expense > 0 ? "4px" : "2px" }}
+                              className="w-3 md:w-3.5 bg-rose-400 rounded-t-full hover:bg-rose-500 transition opacity-90"
                             />
                           </div>
-                          <span className="text-[10px] font-semibold text-slate-400 mt-2">
-                            {item.month}
+                          <span className={`text-[10px] font-semibold mt-2 ${
+                            item.isCurrentMonth ? "text-emerald-500 font-bold" : "text-slate-400"
+                          }`}>
+                            {item.label}
                           </span>
                         </div>
-                      );
-                    })}
+                      ));
+                    })()}
                   </div>
                 </div>
                 <div />
@@ -1009,55 +1151,66 @@ export default function FinelyLiveDashboard() {
 
                   <div className="mt-4">
                     <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                      ₹{(72340 + totalExpense).toLocaleString("en-IN")}
+                      ₹{spendingBreakdown.total.toLocaleString("en-IN")}
                     </div>
-                    <Badge variant="destructive" className="mt-1.5 font-bold">
-                      ↑ +4.1% <span className="font-medium text-rose-700 ml-1">from last month</span>
-                    </Badge>
+                    {spendingBreakdown.total > 0 ? (
+                      <Badge variant="destructive" className="mt-1.5 font-bold">
+                        {spendingBreakdown.items.length} <span className="font-medium text-rose-700 ml-1">spending categories</span>
+                      </Badge>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 mt-1.5 block">No expenses recorded yet</span>
+                    )}
                   </div>
 
-                  {/* Donut Chart & Category Grid */}
-                  <div className="mt-6 flex items-center gap-4">
-                    {/* SVG Donut */}
-                    <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                        <path className="text-slate-100" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path className="text-blue-500" strokeDasharray="18, 100" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path className="text-pink-500" strokeDasharray="14, 100" strokeDashoffset="-18" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path className="text-amber-500" strokeDasharray="9, 100" strokeDashoffset="-32" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path className="text-yellow-500" strokeDasharray="11, 100" strokeDashoffset="-41" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path className="text-purple-500" strokeDasharray="7, 100" strokeDashoffset="-52" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path className="text-slate-400" strokeDasharray="41, 100" strokeDashoffset="-59" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                      </svg>
-                      <div className="absolute flex flex-col items-center justify-center text-center">
-                        <span className="text-[10px] font-bold text-slate-800 leading-tight">₹72,340</span>
-                        <span className="text-[9px] text-slate-400">Total spent</span>
+                  {/* Donut Chart & Category Grid — live data */}
+                  {spendingBreakdown.total > 0 ? (
+                    <div className="mt-6 flex items-center gap-4">
+                      {/* SVG Donut */}
+                      <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                          <path className="text-slate-100" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                          {(() => {
+                            let cum = 0;
+                            return spendingBreakdown.items.map((item) => {
+                              const dash = `${item.pct} ${100 - item.pct}`;
+                              const offset = -cum;
+                              cum += item.pct;
+                              return (
+                                <path key={item.label} strokeDasharray={dash} strokeDashoffset={offset}
+                                  strokeWidth="4" stroke={item.color} fill="none"
+                                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                              );
+                            });
+                          })()}
+                        </svg>
+                        <div className="absolute flex flex-col items-center justify-center text-center">
+                          <span className="text-[10px] font-bold text-slate-800 leading-tight">₹{spendingBreakdown.total.toLocaleString("en-IN")}</span>
+                          <span className="text-[9px] text-slate-400">Total spent</span>
+                        </div>
+                      </div>
+
+                      {/* Category Legend List */}
+                      <div className="flex-1 space-y-1.5 text-[11px]">
+                        {spendingBreakdown.items.map((c) => (
+                          <div key={c.label} className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                              <span className="text-slate-600 font-medium truncate max-w-[90px]">{c.label}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-400 font-semibold">{c.pct}%</span>
+                              <span className="font-bold text-slate-800">₹{c.val.toLocaleString("en-IN")}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-
-                    {/* Category Legend List */}
-                    <div className="flex-1 space-y-1.5 text-[11px]">
-                      {[
-                        { label: "Food & Dining", pct: "18%", val: "₹12,450", color: "bg-blue-500" },
-                        { label: "Shopping", pct: "14%", val: "₹8,200", color: "bg-pink-500" },
-                        { label: "Transport", pct: "9%", val: "₹5,420", color: "bg-amber-500" },
-                        { label: "Bills & Utilities", pct: "11%", val: "₹7,960", color: "bg-yellow-500" },
-                        { label: "Entertainment", pct: "7%", val: "₹3,200", color: "bg-purple-500" },
-                        { label: "Other", pct: "41%", val: "₹29,110", color: "bg-slate-400" },
-                      ].map((c) => (
-                        <div key={c.label} className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${c.color}`} />
-                            <span className="text-slate-600 font-medium truncate max-w-[90px]">{c.label}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400 font-semibold">{c.pct}</span>
-                            <span className="font-bold text-slate-800">{c.val}</span>
-                          </div>
-                        </div>
-                      ))}
+                  ) : (
+                    <div className="mt-6 flex flex-col items-center justify-center h-32 text-center text-slate-400">
+                      <span className="text-3xl mb-2">📊</span>
+                      <p className="text-xs">Add expense transactions to see breakdown</p>
                     </div>
-                  </div>
+                  )}
                 </div>
               </Card>
             </div>
@@ -1151,29 +1304,30 @@ export default function FinelyLiveDashboard() {
                   </div>
 
                   <div className="mt-4 space-y-4">
-                    {[
-                      { rank: 1, label: "Food & Dining", val: "₹12,450", pct: "18%", color: "bg-emerald-500" },
-                      { rank: 2, label: "Shopping", val: "₹8,200", pct: "14%", color: "bg-rose-400" },
-                      { rank: 3, label: "Bills & Utilities", val: "₹7,960", pct: "11%", color: "bg-amber-400" },
-                      { rank: 4, label: "Transport", val: "₹5,420", pct: "9%", color: "bg-blue-500" },
-                    ].map((cat) => (
-                      <div key={cat.rank} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-3">
-                          <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 font-bold text-[11px] flex items-center justify-center">
-                            {cat.rank}
-                          </span>
-                          <span className="font-bold text-slate-900">{cat.label}</span>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-800">{cat.val}</span>
-                          <span className="text-slate-400 font-medium w-8 text-right">{cat.pct}</span>
-                          <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className={`h-full ${cat.color} rounded-full`} style={{ width: cat.pct }} />
+                    {topCategoriesData.length === 0 ? (
+                      <div className="text-center py-6">
+                        <span className="text-3xl">🏷️</span>
+                        <p className="text-xs text-slate-400 mt-2">No expense data yet</p>
+                      </div>
+                    ) : (
+                      topCategoriesData.map((cat) => (
+                        <div key={cat.rank} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-3">
+                            <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 font-bold text-[11px] flex items-center justify-center">
+                              {cat.rank}
+                            </span>
+                            <span className="font-bold text-slate-900">{cat.label}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-slate-800">{cat.val}</span>
+                            <span className="text-slate-400 font-medium w-8 text-right">{cat.pct}</span>
+                            <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div className={`h-full ${cat.color} rounded-full`} style={{ width: cat.pct }} />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               </Card>

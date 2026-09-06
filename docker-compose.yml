@@ -1,0 +1,42 @@
+services:
+  # ── BudgetFlow Next.js App ────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: budgetflow_app
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/dashboard"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+# ── Persistence note ──────────────────────────────────────────────────────────
+#
+#  Current storage: Zustand + browser localStorage (client-side only).
+#  Data lives in the user's browser — no server DB is required to run the app.
+#
+#  To add server-side persistence (PostgreSQL example), uncomment below and
+#  update the app to use API routes + a DB client (e.g. Prisma + pg):
+#
+#  db:
+#    image: postgres:16-alpine
+#    container_name: budgetflow_db
+#    environment:
+#      POSTGRES_USER: budgetflow
+#      POSTGRES_PASSWORD: changeme
+#      POSTGRES_DB: budgetflow
+#    volumes:
+#      - pgdata:/var/lib/postgresql/data
+#    ports:
+#      - "5432:5432"
+#    restart: unless-stopped
+#
+#  volumes:
+#    pgdata:
